@@ -1,78 +1,85 @@
 require('dotenv').config();
 const express = require('express');
 const cors = require('cors');
-const mongoose = require('mongoose');
-const dns = require('dns').promises; // Use the promises API for DNS
-const Url = require('./model/url.js');
+const dns = require('dns');
+const bodyParser = require("body-parser");
+const connectDB = require("./config/db");
+const Url = require("./model/url");
 
 const app = express();
-const MONGO_URI = process.env.MONGO_URI;
+const db_uri = "mongodb+srv://chhotu22:CIWFC4STrGeIesXu@book-review.4cwuq.mongodb.net/?retryWrites=true&w=majority&appName=book-review";
+
+
+connectDB(db_uri);
+
 const port = process.env.PORT || 3000;
 
-mongoose.connect(MONGO_URI, {}).then(() => {
-  console.log('Connected to MongoDB');
-}).catch(err => {
-  console.error('Error connecting to MongoDB', err);
-});
-
-// Middleware
 app.use(cors());
-app.use(express.json());
+app.use(bodyParser.urlencoded({ extended: false }));
 app.use('/public', express.static(`${process.cwd()}/public`));
 
-// Routes
 app.get('/', function (req, res) {
   res.sendFile(process.cwd() + '/views/index.html');
 });
 
+
+app.get('/api/hello', function (req, res) {
+  res.json({ greeting: 'hello API' });
+});
+
+
 app.post('/api/shorturl', async (req, res) => {
-  const originalUrl = req.body.url;
-  const urlPattern = /^(https?:\/\/)(www\.)?[a-zA-Z0-9\-]+\.[a-zA-Z]{2,}(\/.*)?$/;
-
-  if (!urlPattern.test(originalUrl)) {
-    return res.json({ error: 'invalid url' });
-  }
-
-  const hostname = originalUrl.replace(/^(https?:\/\/)?(www\.)?/, '').split('/')[0];
+  const { url } = req.body;
 
   try {
-    const address = await dns.lookup(hostname);
+    const hostname = new URL(url).hostname;
 
-    if (address) {
-      const existingUrl = await Url.findOne({ original_url: originalUrl });
-      if (existingUrl) {
-        return res.json({ original_url: existingUrl.original_url, short_url: existingUrl.short_url });
+    dns.lookup(hostname, async (err) => {
+      if (err) {
+        return res.json({ error: 'invalid url' });
       }
 
-      const shortUrl = new Url({ original_url: originalUrl });
-      const data = await shortUrl.save();
-      return res.json({ original_url: data.original_url, short_url: data.short_url });
-    }
-  } catch (err) {
+      let existingUrl = await Url.findOne({ original_url: url });
+      
+      if (existingUrl) {
+        return res.json({
+          original_url: existingUrl.original_url,
+          short_url: existingUrl.short_url,
+        });
+      }
+
+      const count = await Url.countDocuments({});
+      const shortUrl = count + 1; 
+      const newUrl = new Url({ original_url: url, short_url: shortUrl });
+      await newUrl.save();
+
+      return res.json({
+        original_url: url,
+        short_url: shortUrl,
+      });
+    });
+  } catch (error) {
     return res.json({ error: 'invalid url' });
   }
 });
 
 app.get('/api/shorturl/:short_url', async (req, res) => {
-  const shortUrl = req.params.short_url;
-  
+  const { short_url } = req.params;
+
   try {
-    const data = await Url.findOne({ short_url: shortUrl });
-    if (data) {
-      res.redirect(data.original_url);
-    } else {
-      res.json({ error: 'No shortUrl found' });
+    const doc = await Url.findOne({ short_url });
+
+    if (!doc) {
+      return res.json({ error: 'No short URL found' });
     }
+
+    res.redirect(doc.original_url);
   } catch (err) {
-    res.status(500).json({ error: 'internal error' });
+    res.status(500).json({ error: 'Server error' });
   }
 });
 
-// Your first API endpoint
-app.get('/api/hello', function (req, res) {
-  res.json({ greeting: 'hello API' });
-});
 
 app.listen(port, function () {
-  console.log(`Listening on port http://localhost:${port}`);
+  console.log(`Listening on port ${port}`);
 });
