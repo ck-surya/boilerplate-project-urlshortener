@@ -7,7 +7,7 @@ const connectDB = require("./config/db");
 const Url = require("./model/url");
 
 const app = express();
-const db_uri = "mongodb+srv://chhotu22:CIWFC4STrGeIesXu@book-review.4cwuq.mongodb.net/?retryWrites=true&w=majority&appName=book-review";
+const db_uri = process.env.mongo_uri;
 
 
 connectDB(db_uri);
