@@ -1,10 +1,9 @@
-const mongoose = require('mongoose');
-urlCount = 1;
+const mongoose = require("mongoose");
+
 const urlSchema = new mongoose.Schema({
-    original_url: { type: String, required: true },
-    short_url: { type: Number, default:()=>urlCount++ }
-});
+    original_url: String,
+    short_url: String,
+  });
 
-const Url = mongoose.model('Url', urlSchema);
-
-module.exports = Url;
+module.exports = mongoose.model('Url', urlSchema);
+  
